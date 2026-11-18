@@ -418,17 +418,27 @@ function showSignIn(){
   el.innerHTML=`<div class="signcard"><span class="mark"><svg class="i"><use href="#i-check"/></svg></span><h1>Органайзер</h1>
     <p class="hint">Войдите через Google, чтобы записи были одинаковыми на компьютере и телефоне.</p>
     <button class="btn" id="gIn" style="width:100%;justify-content:center;padding:11px">Войти через Google</button>
-    <p class="hint" id="gErr" style="color:var(--warn)"></p></div>`;
+    <p class="hint" id="gErr" style="color:var(--warn)">${inAppHint(false)}</p></div>`;
   $("#gIn").onclick=async()=>{
     const prov=new FB.m.GoogleAuthProvider();
     try{ await FB.m.signInWithPopup(FB.auth,prov); }
     catch(e){
-      if(e && /popup|cancelled|operation-not-supported/.test(e.code||"")){ try{ await FB.m.signInWithRedirect(FB.auth,prov); return; }catch(e2){} }
+      // Переход на страницу входа (redirect) не работает в Safari и встроенных браузерах: там сайт и Firebase на разных адресах. Поэтому только всплывающее окно.
+      if(e && /popup-blocked|operation-not-supported|web-storage/.test(e.code||"")){ $("#gErr").innerHTML=inAppHint(true); return; }
+      if(e && /popup-closed|cancelled-popup/.test(e.code||"")){ $("#gErr").textContent="Окно входа закрылось. Попробуйте ещё раз."; return; }
       if(e && e.code==="auth/network-request-failed") $("#gErr").textContent="Нет интернета. Для первого входа нужен интернет.";
       else if(e && e.code==="auth/unauthorized-domain") $("#gErr").textContent="Этот адрес не добавлен в Firebase (Authorized domains).";
       else $("#gErr").textContent="Не получилось войти"+(e&&e.code?" ("+e.code+")":"");
     }
   };
+}
+function inAppHint(force){
+  const ua=navigator.userAgent, ios=/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1);
+  const inApp=/Telegram|FBAN|FBAV|Instagram|Line\/|WhatsApp|VK|wv\)/i.test(ua) || (ios && !/Safari\//.test(ua) && !navigator.standalone);
+  if(!inApp && !force) return "";
+  return ios
+    ? "Похоже, страница открыта внутри другого приложения (например, Telegram). Вход там не работает. Нажмите «⋯» или значок компаса и выберите «Открыть в Safari», либо скопируйте адрес и вставьте его в Safari."
+    : "Похоже, страница открыта внутри другого приложения или всплывающие окна запрещены. Откройте адрес в Chrome (меню ⋮ → «Открыть в Chrome») и разрешите всплывающие окна для этого сайта.";
 }
 function hideSignIn(){ const el=$("#signin"); if(el) el.remove(); }
 function showLoad(msg){
